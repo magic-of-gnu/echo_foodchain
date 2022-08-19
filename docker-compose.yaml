@@ -1,0 +1,52 @@
+version: "3.8"
+services:
+  reverse-proxy:
+    image: traefik:v2.2
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker"
+      - "--providers.docker.exposedByDefault=false"
+      - "--api.debug=true"
+      - "--log.level=DEBUG"
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+  app_backend:
+    build:
+      context: ./app_backend
+      target: builder
+    image: account
+    env_file: app_backend/.env.dev
+    expose:
+      - "8080"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.app_backend.rule=Host(`malcorp.test`) && PathPrefix(`/api/`)"
+    environment:
+      - ENV=dev
+    volumes:
+      - ./app_backend:/go/src/app
+    depends_on:
+      - postgres_echo_foodchain
+      - redisdata_echo_foodchain
+    command: reflex -r "\.go$$" -s -- sh -c "go run ./"
+  postgres_echo_foodchain:
+    image: "postgres:alpine"
+    environment:
+      - POSTGRES_PASSWORD=password
+    ports:
+      - "5432:5432"
+    volumes:
+      - "pgdata_echo_foodchain:/var/lib/postgresql/data"
+    command: ["postgres", "-c", "log_statement=all"]
+  redisdata_echo_foodchain:
+    image: "redis:alpine"
+    ports:
+      - 6379:6379
+    volumes:
+      - "redisdata_echo_foodchain:/data"
+volumes:
+  pgdata_echo_foodchain:
+  redisdata_echo_foodchain:
